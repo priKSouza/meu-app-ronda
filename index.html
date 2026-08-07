@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title>Rondas de Sinalização - Unimed Litoral</title>
+    
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        unimed: {
+                            green: '#00995D',
+                            dark: '#00663e',
+                            light: '#e6f5f0',
+                            slate: '#1e293b'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Font Awesome para Ícones -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Chart.js para Gráficos do Dashboard -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- html2pdf.js para Geração do Relatório em PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body class="bg-gray-100 text-gray-800 min-h-screen pb-20 md:pb-6">
+
+    <!-- HEADER / NAVEGAÇÃO -->
+    <header class="bg-unimed-green text-white shadow-md sticky top-0 z-40">
+        <div class="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <i class="fa-solid me-2 fa-clipboard-check text-2xl"></i>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight">Unimed Litoral</h1>
+                    <p class="text-xs text-green-100">Rondas de Sinalização e Padronização</p>
+                </div>
+            </div>
+            <!-- Botão de Configurações -->
+            <button id="btn-settings" class="p-2 hover:bg-unimed-dark rounded-full transition-colors" title="Configurações de Webhook">
+                <i class="fa-solid fa-gear text-xl"></i>
+            </button>
+        </div>
+
+        <!-- Abas Principais -->
+        <div class="flex border-t border-green-600 bg-unimed-dark">
+            <button id="tab-btn-nova" onclick="alternarAba('nova')" class="flex-1 py-3 text-center font-medium text-sm border-b-4 border-white bg-unimed-green transition-all">
+                <i class="fa-solid fa-plus-circle mr-1"></i> Nova Ronda
+            </button>
+            <button id="tab-btn-dashboard" onclick="alternarAba('dashboard')" class="flex-1 py-3 text-center font-medium text-sm text-green-200 hover:text-white border-b-4 border-transparent transition-all">
+                <i class="fa-solid fa-chart-pie mr-1"></i> Dashboard & Histórico
+            </button>
+        </div>
+    </header>
+
+    <!-- CONTEÚDO PRINCIPAL -->
+    <main class="max-w-5xl mx-auto px-4 py-6">
+
+        <!-- ABA 1: NOVA RONDA -->
+        <section id="aba-nova-ronda" class="space-y-6">
+            <!-- Cabeçalho do Formulário -->
+            <div class="bg-white rounded-lg shadow-sm p-4 border border-gray-200 space-y-4">
+                <h2 class="text-lg font-bold text-unimed-slate flex items-center gap-2 border-b pb-2">
+                    <i class="fa-solid fa-hospital text-unimed-green"></i> Dados da Vistoria
+                </h2>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Unidade / Local Inspecionado *</label>
+                        <input type="text" id="unidade-local" placeholder="Ex: PA Balneário, Hospital HUI" class="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-unimed-green focus:outline-none text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Nome do Inspetor *</label>
+                        <input type="text" id="nome-inspetor" placeholder="Seu nome completo" class="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-unimed-green focus:outline-none text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Data e Hora</label>
+                        <input type="datetime-local" id="data-hora-ronda" class="w-full px-3 py-2 border rounded-md bg-gray-50 text-sm">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Resumo Flutuante / Contador de Progresso -->
+            <div class="flex justify-between items-center bg-white p-3 rounded-lg border shadow-sm text-xs md:text-sm font-semibold">
+                <span class="text-green-700"><i class="fa-solid fa-circle-check"></i> Conformes: <strong id="count-conformes">0</strong></span>
+                <span class="text-red-600"><i class="fa-solid fa-circle-xmark"></i> Não Conformes: <strong id="count-nao-conformes">0</strong></span>
+                <span class="text-gray-500"><i class="fa-solid fa-minus-circle"></i> N/A: <strong id="count-na">18</strong></span>
+            </div>
+
+            <!-- Lista Dinâmica dos 18 Itens de Inspeção (Gerados via JS) -->
+            <div id="container-itens-inspecao" class="space-y-4">
+                <!-- Os 18 cards serão renderizados dinamicamente pelo JavaScript aqui -->
+            </div>
+
+            <!-- Botão de Ação Flutuante/Fixo de Finalização -->
+            <div class="pt-4 pb-12">
+                <button id="btn-finalizar-ronda" onclick="processarEnvioRonda()" class="w-full bg-unimed-green hover:bg-unimed-dark text-white font-bold py-4 px-6 rounded-lg shadow-lg flex items-center justify-center space-x-2 text-base transition-colors">
+                    <i class="fa-solid fa-paper-plane"></i>
+                    <span>Finalizar e Salvar Ronda</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- ABA 2: DASHBOARD & HISTÓRICO -->
+        <section id="aba-dashboard" class="space-y-6 hidden">
+            <!-- Cards de KPIs Executivos -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="bg-white p-5 rounded-lg border shadow-sm flex items-center justify-between">
+                    <div>
+                        <p class="text-xs text-gray-500 font-bold uppercase">Rondas Realizadas no Mês</p>
+                        <h3 id="kpi-total-rondas" class="text-3xl font-extrabold text-unimed-slate mt-1">0</h3>
+                    </div>
+                    <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center text-unimed-green text-xl">
+                        <i class="fa-solid fa-clipboard-list"></i>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-lg border shadow-sm flex items-center justify-between">
+                    <div>
+                        <p class="text-xs text-gray-500 font-bold uppercase">Conformidade Geral</p>
+                        <h3 id="kpi-indice-conformidade" class="text-3xl font-extrabold text-unimed-green mt-1">0%</h3>
+                    </div>
+                    <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center text-unimed-green text-xl">
+                        <i class="fa-solid fa-chart-line"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gráficos Gerenciais -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-white p-4 rounded-lg border shadow-sm space-y-2">
+                    <h4 class="text-sm font-bold text-gray-700">Unidades com Mais Avarias</h4>
+                    <div class="relative h-64">
+                        <canvas id="chart-unidades"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-lg border shadow-sm space-y-2">
+                    <h4 class="text-sm font-bold text-gray-700">Distribuição de Falhas por Item</h4>
+                    <div class="relative h-64">
+                        <canvas id="chart-itens"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabela de Histórico de Rondas -->
+            <div class="bg-white rounded-lg border shadow-sm overflow-hidden">
+                <div class="p-4 border-b bg-gray-50 flex flex-col md:flex-row justify-between md:items-center gap-3">
+                    <h3 class="font-bold text-gray-700 flex items-center gap-2">
+                        <i class="fa-solid fa-history text-unimed-green"></i> Histórico de Registros
+                    </h3>
+                    
+                    <!-- Filtro por Unidade -->
+                    <input type="text" id="filtro-historico" onkeyup="filtrarHistorico()" placeholder="Filtrar por unidade..." class="px-3 py-1.5 border rounded-md text-sm w-full md:w-64 focus:ring-1 focus:ring-unimed-green focus:outline-none">
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm text-gray-600">
+                        <thead class="bg-gray-100 text-gray-700 font-semibold text-xs uppercase border-b">
+                            <tr>
+                                <th class="p-3">Data/Hora</th>
+                                <th class="p-3">Unidade / Local</th>
+                                <th class="p-3">Inspetor</th>
+                                <th class="p-3 text-center">Resultado</th>
+                                <th class="p-3 text-center">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabela-historico-body" class="divide-y">
+                            <!-- Linhas inseridas via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- MODAL 1: CONFIGURAÇÃO DE WEBHOOK -->
+    <div id="modal-settings" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-lg max-w-md w-full p-6 space-y-4 shadow-xl">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="font-bold text-lg text-gray-800">Configurações do Sistema</h3>
+                <button onclick="fecharModal('modal-settings')" class="text-gray-400 hover:text-gray-600">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-gray-600 uppercase mb-2">URL do Webhook do Google Apps Script</label>
+                <textarea id="input-webhook-url" rows="4" class="w-full p-2 border rounded-md text-xs font-mono focus:ring-1 focus:ring-unimed-green focus:outline-none"></textarea>
+            </div>
+            <div class="flex justify-end space-x-2 pt-2">
+                <button onclick="fecharModal('modal-settings')" class="px-4 py-2 border rounded-md text-sm text-gray-600 hover:bg-gray-50">Cancelar</button>
+                <button onclick="salvarConfiguracaoWebhook()" class="px-4 py-2 bg-unimed-green hover:bg-unimed-dark text-white rounded-md text-sm font-semibold">Salvar URL</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 2: RESUMO E DOWNLOAD DO PDF -->
+    <div id="modal-resumo" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-lg max-w-lg w-full p-6 space-y-5 shadow-2xl">
+            <div class="text-center space-y-2">
+                <div class="w-16 h-16 bg-green-100 text-unimed-green rounded-full flex items-center justify-center mx-auto text-3xl">
+                    <i class="fa-solid fa-circle-check"></i>
+                </div>
+                <h3 class="text-xl font-bold text-gray-800">Ronda Finalizada com Sucesso!</h3>
+                <p class="text-xs text-gray-500">Os dados foram enviados para o Google Sheets e Google Drive.</p>
+            </div>
+
+            <!-- Quadro de Métricas da Ronda Concluída -->
+            <div class="bg-gray-50 p-4 rounded-lg grid grid-cols-2 gap-4 text-center border">
+                <div>
+                    <span class="block text-xs text-gray-500 font-semibold uppercase">Itens Conformes</span>
+                    <span id="resumo-conformes" class="text-2xl font-bold text-green-600">0</span>
+                </div>
+                <div>
+                    <span class="block text-xs text-gray-500 font-semibold uppercase">Avarias Identificadas</span>
+                    <span id="resumo-nao-conformes" class="text-2xl font-bold text-red-600">0</span>
+                </div>
+            </div>
+
+            <div class="space-y-3">
+                <button onclick="gerarPDFRelatorio()" class="w-full bg-unimed-slate hover:bg-gray-800 text-white font-bold py-3 px-4 rounded-md flex items-center justify-center gap-2 text-sm shadow">
+                    <i class="fa-solid fa-file-pdf text-red-400"></i>
+                    <span>Baixar Relatório das Avarias (PDF)</span>
+                </button>
+                
+                <button onclick="fecharModal('modal-resumo'); resetarFormulario();" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2.5 px-4 rounded-md text-sm">
+                    Iniciar Nova Ronda
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ÁREA OCULTA PARA GERAÇÃO DO PDF -->
+    <div class="hidden">
+        <div id="template-pdf" class="p-8 bg-white font-sans text-gray-800">
+            <!-- Estrutura do relatório PDF em estilo impresso gerada via JS -->
+        </div>
+    </div>
+
+    <!-- SCRIPT DA APLICAÇÃO (A SER ADICIONADO NO PRÓXIMO PASSO) -->
+    <script src="app.js"></script>
+</body>
+</html>

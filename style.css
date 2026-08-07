@@ -1,0 +1,156 @@
+/* ==========================================================================
+   RONDAS DE SINALIZAÇÃO E PADRONIZAÇÃO - UNIMED LITORAL
+   Estilos Personalizados & Ajustes Finos do Tailwind CSS
+   ========================================================================== */
+
+/* 1. Variáveis Globais de Cores da Marca Unimed */
+:root {
+    --unimed-green: #00995D;
+    --unimed-dark: #00663e;
+    --unimed-light: #e6f5f0;
+    --unimed-slate: #1e293b;
+    --unimed-red: #e11d48;
+    --unimed-gray: #64748b;
+}
+
+/* 2. Scrollbar Personalizada */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* 3. Transições de Interface e Modais */
+.transition-fade {
+    transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
+}
+
+/* Efeito de elevação nos Cards dos 18 itens */
+.item-card {
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.item-card:hover {
+    box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* Destaque para cards Não Conformes (com Avarias) */
+.item-card-nao-conforme {
+    border-left: 4px solid var(--unimed-red) !important;
+    background-color: #fef2f2;
+}
+
+/* Destaque para cards Conformes */
+.item-card-conforme {
+    border-left: 4px solid var(--unimed-green) !important;
+}
+
+/* 4. Estilização dos Botoes de Toggle de Status (Conforme / Não Conforme / N/A) */
+.btn-status {
+    transition: all 0.15s ease-in-out;
+    user-select: none;
+}
+
+.btn-status-conforme.active {
+    background-color: var(--unimed-green) !important;
+    color: #ffffff !important;
+    border-color: var(--unimed-green) !important;
+}
+
+.btn-status-nao-conforme.active {
+    background-color: var(--unimed-red) !important;
+    color: #ffffff !important;
+    border-color: var(--unimed-red) !important;
+}
+
+.btn-status-na.active {
+    background-color: var(--unimed-gray) !important;
+    color: #ffffff !important;
+    border-color: var(--unimed-gray) !important;
+}
+
+/* 5. Pré-visualização de Imagens Anexadas (Thumbnails) */
+.thumb-container {
+    position: relative;
+    display: inline-block;
+    width: 70px;
+    height: 70px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+}
+
+.thumb-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.thumb-delete-btn {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    background: rgba(225, 29, 72, 0.85);
+    color: white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.thumb-delete-btn:hover {
+    background: rgba(225, 29, 72, 1);
+}
+
+/* 6. Estilos Exclusivos para a Geração do PDF Impresso */
+@media print {
+    body {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
+
+    /* Oculta navegação, botões e modais no PDF */
+    header, button, #btn-finalizar-ronda, .no-print {
+        display: none !important;
+    }
+
+    .pdf-page-break {
+        page-break-before: always;
+    }
+}
+
+/* Layout específico do Template em PDF */
+#template-pdf {
+    width: 100%;
+    max-width: 800px;
+    margin: 0 auto;
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.pdf-header {
+    border-bottom: 2px solid var(--unimed-green);
+    padding-bottom: 12px;
+    margin-bottom: 20px;
+}
+
+.pdf-item-row {
+    border-bottom: 1px solid #e2e8f0;
+    padding: 12px 0;
+}
