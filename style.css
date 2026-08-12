@@ -85,11 +85,12 @@
 .thumb-container {
     position: relative;
     display: inline-block;
-    width: 70px;
-    height: 70px;
-    border-radius: 8px;
+    width: 80px;
+    height: 80px;
+    border-radius: 6px;
     overflow: hidden;
-    border: 1px solid #e2e8f0;
+    border: 1px solid #cbd5e1;
+    background-color: #f8fafc;
 }
 
 .thumb-container img {
@@ -100,17 +101,17 @@
 
 .thumb-delete-btn {
     position: absolute;
-    top: 2px;
-    right: 2px;
-    background: rgba(225, 29, 72, 0.85);
+    top: 3px;
+    right: 3px;
+    background: rgba(225, 29, 72, 0.9);
     color: white;
     border-radius: 50%;
-    width: 20px;
-    height: 20px;
+    width: 22px;
+    height: 22px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 10px;
+    font-size: 11px;
     cursor: pointer;
     transition: background 0.2s ease;
 }
@@ -126,7 +127,6 @@
         color: #000000 !important;
     }
 
-    /* Oculta navegação, botões e modais no PDF */
     header, button, #btn-finalizar-ronda, .no-print {
         display: none !important;
     }
@@ -136,7 +136,6 @@
     }
 }
 
-/* Layout específico do Template em PDF */
 #template-pdf {
     width: 100%;
     max-width: 800px;

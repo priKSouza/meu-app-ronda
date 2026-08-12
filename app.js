@@ -6,14 +6,14 @@
 const ITENS_INSPECAO = [
     "Fachada Principal",
     "Tótens Externos",
-    "Placas Externas de Orientação",
+    "Placas Externas de Orientação e avisos",
     "Sinalização de Estacionamento",
     "Placas de Guichê e Balcões",
     "Placas de Porta (Salas/Consultórios)",
     "Placas Aéreas (Teto)",
-    "Placas de Parede",
-    "Placas de Emergência e Segurança",
-    "Sinalização de Máquinas e Espaço Café",
+    "Placas de Parede (avisos e isnalizações)",
+    "Placas de Emergência e Segurança - SSGA",
+    "Sinalização no Espaço Café",
     "Rotas de Fuga (Sinalização SSGA)",
     "Pesquisas de Satisfação (Verificar Layout Cinza Atualizado)",
     "Plotagens em Portas de Vidro (Faixas, Letras e Adesivos blackout/jateado)",
@@ -21,7 +21,7 @@ const ITENS_INSPECAO = [
     "Elevadores (Faixas e Acrílico Interno)",
     "Impressões Avulsas / Poluição Visual (Proibido papéis sem acrílico ou fora do padrão)",
     "TVs e Mídias (Vídeos institucionais ativos. Exceções: Oncologia, Área Kids, EVB)",
-    "Adesivos"
+    "Adesivos de armários"
 ];
 
 // Endpoint Padrão do Webhook do Google Apps Script
@@ -107,13 +107,12 @@ function inicializarFormularioRonda() {
     ITENS_INSPECAO.forEach((nomeItem, index) => {
         const idItem = `item_${index}`;
         
-        // Estado inicial de cada item: N/A
+        // Estado inicial de cada item: N/A e array de evidências vazio
         estadoRonda.itens[idItem] = {
             index: index + 1,
             nome: nomeItem,
             status: "N/A",
-            observacao: "",
-            fotos: []
+            evidencias: []
         };
 
         // Renderiza o card do item no HTML
@@ -138,28 +137,23 @@ function inicializarFormularioRonda() {
                     </div>
                 </div>
 
-                <!-- Painel de Detalhes (Visível principalmente para Não Conforme) -->
-                <div id="painel_detalhes_${idItem}" class="space-y-3 pt-1">
-                    <div>
-                        <label class="block text-xs font-medium text-gray-600 mb-1">
-                            Observações / Detalhes do Problema <span id="req_obs_${idItem}" class="text-red-500 hidden">*</span>
-                        </label>
-                        <textarea id="obs_${idItem}" oninput="atualizarObservacao('${idItem}', this.value)" rows="2" placeholder="Descreva a avaria ou inconformidade..." class="w-full p-2 text-xs border rounded-md focus:ring-1 focus:ring-unimed-green focus:outline-none"></textarea>
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-medium text-gray-600 mb-1">
-                            Anexar Fotos <span id="req_foto_${idItem}" class="text-red-500 hidden">*</span>
-                        </label>
-                        <div class="flex flex-wrap items-center gap-2">
-                            <label class="cursor-pointer bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-md px-3 py-2 text-xs font-semibold text-gray-700 flex items-center gap-1.5 transition-colors">
-                                <i class="fa-solid fa-camera text-unimed-green"></i> Adicionar Foto
-                                <input type="file" accept="image/*" multiple onchange="processarUploadFotos('${idItem}', this)" class="hidden">
-                            </label>
-                            
-                            <!-- Container de Thumbnails -->
-                            <div id="thumbs_${idItem}" class="flex flex-wrap gap-2"></div>
+                <!-- Container do Bloco de Evidências (Oculto por padrão para Conforme e N/A) -->
+                <div id="painel_detalhes_${idItem}" class="hidden space-y-3 pt-2">
+                    <div class="bg-red-50/50 p-3 rounded-md border border-red-100 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-red-700 flex items-center gap-1.5">
+                                <i class="fa-solid fa-triangle-exclamation"></i> Registro de Evidências da Avaria
+                            </span>
+                            <span class="text-[11px] text-gray-500">Adicione foto, local e descrição</span>
                         </div>
+
+                        <!-- Lista de Cards de Evidências -->
+                        <div id="lista_evidencias_${idItem}" class="space-y-3"></div>
+
+                        <!-- Botão para adicionar mais uma evidência -->
+                        <button type="button" onclick="adicionarCardEvidencia('${idItem}')" class="w-full py-2 bg-white hover:bg-red-50 text-red-600 border border-red-200 border-dashed font-semibold text-xs rounded-md transition-colors flex items-center justify-center gap-1">
+                            <i class="fa-solid fa-plus"></i> Adicionar Mais Uma Evidência / Foto
+                        </button>
                     </div>
                 </div>
             </div>
@@ -178,8 +172,7 @@ function definirStatusItem(idItem, novoStatus) {
     const btnConforme = document.getElementById(`btn_conforme_${idItem}`);
     const btnNaoConforme = document.getElementById(`btn_nao_conforme_${idItem}`);
     const btnNA = document.getElementById(`btn_na_${idItem}`);
-    const reqObs = document.getElementById(`req_obs_${idItem}`);
-    const reqFoto = document.getElementById(`req_foto_${idItem}`);
+    const painelDetalhes = document.getElementById(`painel_detalhes_${idItem}`);
 
     // Limpa classes ativas dos botões
     btnConforme.classList.remove("active");
@@ -192,24 +185,114 @@ function definirStatusItem(idItem, novoStatus) {
     if (novoStatus === "Conforme") {
         btnConforme.classList.add("active");
         card.classList.add("item-card-conforme");
-        reqObs.classList.add("hidden");
-        reqFoto.classList.add("hidden");
+        painelDetalhes.classList.add("hidden");
     } else if (novoStatus === "Não Conforme") {
         btnNaoConforme.classList.add("active");
         card.classList.add("item-card-nao-conforme");
-        reqObs.classList.remove("hidden");
-        reqFoto.classList.remove("hidden");
+        painelDetalhes.classList.remove("hidden");
+
+        // Se for Não Conforme e ainda não tiver nenhuma evidência criada, adiciona a primeira automaticamente
+        if (estadoRonda.itens[idItem].evidencias.length === 0) {
+            adicionarCardEvidencia(idItem);
+        }
     } else {
         btnNA.classList.add("active");
-        reqObs.classList.add("hidden");
-        reqFoto.classList.add("hidden");
+        painelDetalhes.classList.add("hidden");
     }
 
     atualizarContadoresStatus();
 }
 
-function atualizarObservacao(idItem, texto) {
-    estadoRonda.itens[idItem].observacao = texto;
+// Gerenciamento dos Cards Dinâmicos de Evidências (Foto + Local + Descrição)
+function adicionarCardEvidencia(idItem) {
+    const evId = 'ev_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+    
+    estadoRonda.itens[idItem].evidencias.push({
+        id: evId,
+        local: "",
+        descricao: "",
+        foto: ""
+    });
+
+    renderizarCardsEvidencia(idItem);
+}
+
+function removerCardEvidencia(idItem, evId) {
+    estadoRonda.itens[idItem].evidencias = estadoRonda.itens[idItem].evidencias.filter(ev => ev.id !== evId);
+    renderizarCardsEvidencia(idItem);
+}
+
+function renderizarCardsEvidencia(idItem) {
+    const container = document.getElementById(`lista_evidencias_${idItem}`);
+    if (!container) return;
+    
+    container.innerHTML = "";
+
+    estadoRonda.itens[idItem].evidencias.forEach((ev, idx) => {
+        const evHTML = `
+            <div id="card_ev_${ev.id}" class="bg-white p-3 rounded-md border border-gray-200 shadow-sm relative space-y-2">
+                <div class="flex items-center justify-between border-b pb-1">
+                    <span class="text-xs font-semibold text-gray-700">Evidência #${idx + 1}</span>
+                    <button type="button" onclick="removerCardEvidencia('${idItem}', '${ev.id}')" class="text-xs text-red-500 hover:text-red-700 font-medium flex items-center gap-1" title="Remover Evidência">
+                        <i class="fa-solid fa-trash-can"></i> Excluir
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-[11px] font-medium text-gray-600 mb-0.5">Local / Sala / Setor <span class="text-red-500">*</span></label>
+                        <input type="text" value="${ev.local || ''}" oninput="atualizarDadosEvidencia('${idItem}', '${ev.id}', 'local', this.value)" placeholder="Ex: Recepção, Consultório 02, Corridor B..." class="w-full p-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-unimed-green focus:outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-[11px] font-medium text-gray-600 mb-0.5">Descrição da Avaria <span class="text-red-500">*</span></label>
+                        <input type="text" value="${ev.descricao || ''}" oninput="atualizarDadosEvidencia('${idItem}', '${ev.id}', 'descricao', this.value)" placeholder="Ex: Acrílico quebrado, vinil descascando..." class="w-full p-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-unimed-green focus:outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[11px] font-medium text-gray-600 mb-1">Foto da Avaria <span class="text-red-500">*</span></label>
+                    <div class="flex items-center gap-3">
+                        <label class="cursor-pointer bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded px-2.5 py-1.5 text-xs font-medium text-gray-700 flex items-center gap-1.5 transition-colors">
+                            <i class="fa-solid fa-camera text-unimed-green"></i> ${ev.foto ? 'Trocar Foto' : 'Capturar / Carregar Foto'}
+                            <input type="file" accept="image/*" onchange="processarUploadFotoEvidencia('${idItem}', '${ev.id}', this)" class="hidden">
+                        </label>
+                        
+                        <div id="thumb_ev_${ev.id}">
+                            ${ev.foto ? `
+                                <div class="thumb-container">
+                                    <img src="${ev.foto}" alt="Preview">
+                                </div>
+                            ` : '<span class="text-[11px] text-gray-400 italic">Nenhuma foto selecionada</span>'}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        container.insertAdjacentHTML("beforeend", evHTML);
+    });
+}
+
+function atualizarDadosEvidencia(idItem, evId, campo, valor) {
+    const ev = estadoRonda.itens[idItem].evidencias.find(e => e.id === evId);
+    if (ev) {
+        ev[campo] = valor;
+    }
+}
+
+function processarUploadFotoEvidencia(idItem, evId, input) {
+    const file = input.files[0];
+    if (!file || !file.type.startsWith("image/")) return;
+
+    comprimirImagem(file, 800, 0.5, (base64Comprimido) => {
+        const ev = estadoRonda.itens[idItem].evidencias.find(e => e.id === evId);
+        if (ev) {
+            ev.foto = base64Comprimido;
+            renderizarCardsEvidencia(idItem);
+        }
+    });
+
+    input.value = "";
 }
 
 function atualizarContadoresStatus() {
@@ -232,23 +315,6 @@ function atualizarContadoresStatus() {
 // ==============================================================================
 // 4. COMPRESSÃO DE FOTOS CLIENT-SIDE (HTML5 CANVAS 800px / JPEG 0.5)
 // ==============================================================================
-function processarUploadFotos(idItem, input) {
-    const files = Array.from(input.files);
-    if (!files || files.length === 0) return;
-
-    files.forEach(file => {
-        if (!file.type.startsWith("image/")) return;
-
-        comprimirImagem(file, 800, 0.5, (base64Comprimido) => {
-            estadoRonda.itens[idItem].fotos.push(base64Comprimido);
-            renderizarThumbnails(idItem);
-        });
-    });
-
-    // Reseta o input file para permitir re-upload do mesmo arquivo se necessário
-    input.value = "";
-}
-
 function comprimirImagem(file, maxDimension, quality, callback) {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -258,7 +324,6 @@ function comprimirImagem(file, maxDimension, quality, callback) {
             let width = img.width;
             let height = img.height;
 
-            // Redimensiona mantendo a proporção de aspecto
             if (width > height) {
                 if (width > maxDimension) {
                     height = Math.round((height * maxDimension) / width);
@@ -277,35 +342,12 @@ function comprimirImagem(file, maxDimension, quality, callback) {
             const ctx = canvas.getContext("2d");
             ctx.drawImage(img, 0, 0, width, height);
 
-            // Exporta a imagem comprimida em string Base64
             const dataUrlComprimida = canvas.toDataURL("image/jpeg", quality);
             callback(dataUrlComprimida);
         };
         img.src = e.target.result;
     };
     reader.readAsDataURL(file);
-}
-
-function renderizarThumbnails(idItem) {
-    const container = document.getElementById(`thumbs_${idItem}`);
-    container.innerHTML = "";
-
-    estadoRonda.itens[idItem].fotos.forEach((fotoBase64, index) => {
-        const thumbHTML = `
-            <div class="thumb-container">
-                <img src="${fotoBase64}" alt="Foto ${index + 1}">
-                <button type="button" onclick="removerFoto('${idItem}', ${index})" class="thumb-delete-btn" title="Remover Foto">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
-            </div>
-        `;
-        container.insertAdjacentHTML("beforeend", thumbHTML);
-    });
-}
-
-function removerFoto(idItem, indexFoto) {
-    estadoRonda.itens[idItem].fotos.splice(indexFoto, 1);
-    renderizarThumbnails(idItem);
 }
 
 
@@ -321,21 +363,30 @@ async function processarEnvioRonda() {
         return;
     }
 
-    // Validação de itens Não Conformes (Exige texto e foto)
+    // Validação de itens Não Conformes (Exige ao menos 1 evidência completa)
     let pendencias = [];
     Object.values(estadoRonda.itens).forEach(item => {
         if (item.status === "Não Conforme") {
-            if (!item.observacao.trim()) {
-                pendencias.push(`- Item "${item.nome}" está sem observação do problema.`);
-            }
-            if (item.fotos.length === 0) {
-                pendencias.push(`- Item "${item.nome}" exige pelo menos 1 foto anexada.`);
+            if (item.evidencias.length === 0) {
+                pendencias.push(`- Item "${item.nome}" exige pelo menos 1 evidência cadastrada.`);
+            } else {
+                item.evidencias.forEach((ev, idx) => {
+                    if (!ev.local.trim()) {
+                        pendencias.push(`- Item "${item.nome}" (Evidência #${idx + 1}): Preencha o Local/Sala.`);
+                    }
+                    if (!ev.descricao.trim()) {
+                        pendencias.push(`- Item "${item.nome}" (Evidência #${idx + 1}): Preencha a Descrição da avaria.`);
+                    }
+                    if (!ev.foto) {
+                        pendencias.push(`- Item "${item.nome}" (Evidência #${idx + 1}): Anexe a Foto.`);
+                    }
+                });
             }
         }
     });
 
     if (pendencias.length > 0) {
-        alert("Atenção! Preencha as exigências dos itens Não Conformes:\n\n" + pendencias.join("\n"));
+        alert("Atenção! Complete os campos obrigatórios das evidências não conformes:\n\n" + pendencias.join("\n"));
         return;
     }
 
@@ -351,8 +402,11 @@ async function processarEnvioRonda() {
         itensDetalhadosArray.push({
             Nome_Item: item.nome,
             Status: item.status,
-            Observacao: item.observacao,
-            Fotos: item.fotos
+            Evidencias: item.evidencias.map(e => ({
+                Local: e.local,
+                Descricao: e.descricao,
+                Foto: e.foto
+            }))
         });
     });
 
@@ -368,7 +422,7 @@ async function processarEnvioRonda() {
         dataFormatada = new Date().toLocaleString("pt-BR");
     }
 
-    // Monta o Payload exatamente como o script espera
+    // Monta o Payload para envio
     const payload = {
         ID_Ronda: estadoRonda.ID_Ronda,
         Data_Hora: dataFormatada,
@@ -387,7 +441,6 @@ async function processarEnvioRonda() {
     const urlWebhook = localStorage.getItem("unimed_webhook_url") || WEBHOOK_DEFAULT;
 
     try {
-        // Envio HTTP POST com tratamento para ignorar bloqueios CORS do Google Apps Script
         await fetch(urlWebhook, {
             method: "POST",
             headers: {
@@ -397,22 +450,18 @@ async function processarEnvioRonda() {
             redirect: "follow"
         });
 
-        // Salva registro localmente para alimentar os indicadores
         salvarEnvioLocal(payload);
 
-        // Exibe modal de resumo
         document.getElementById("resumo-conformes").textContent = totalConformes;
         document.getElementById("resumo-nao-conformes").textContent = totalNaoConformes;
         document.getElementById("modal-resumo").classList.remove("hidden");
 
-        // Atualiza Dashboard
         carregarDashboardEHistorico();
 
     } catch (erro) {
         console.error("Erro ao enviar webhook:", erro);
-        alert("Sua ronda foi gravada localmente no dispositivo, porém ocorreu uma instabilidade na comunicação com a planilha Google Sheets: " + erro.message);
+        alert("Sua ronda foi gravada localmente no dispositivo, porém ocorreu uma instabilidade na comunicação com o servidor: " + erro.message);
         
-        // Garante a gravação local mesmo com falha de rede
         salvarEnvioLocal(payload);
         carregarDashboardEHistorico();
     } finally {
@@ -423,7 +472,7 @@ async function processarEnvioRonda() {
 
 function salvarEnvioLocal(payload) {
     let historico = JSON.parse(localStorage.getItem("unimed_historico_rondas") || "[]");
-    historico.unshift(payload); // Insere no início
+    historico.unshift(payload);
     localStorage.setItem("unimed_historico_rondas", JSON.stringify(historico));
 }
 
@@ -465,7 +514,6 @@ function alternarAba(aba) {
 function carregarDashboardEHistorico() {
     const historico = JSON.parse(localStorage.getItem("unimed_historico_rondas") || "[]");
 
-    // KPI 1: Total de Rondas no Mês Atual
     const mesAtual = new Date().getMonth();
     const anoAtual = new Date().getFullYear();
     const rondasMes = historico.filter(r => {
@@ -474,7 +522,6 @@ function carregarDashboardEHistorico() {
     });
     document.getElementById("kpi-total-rondas").textContent = rondasMes.length;
 
-    // KPI 2: Índice Geral de Conformidade
     let totalAvaliados = 0;
     let totalConformes = 0;
 
@@ -486,37 +533,29 @@ function carregarDashboardEHistorico() {
     const percentual = totalAvaliados > 0 ? Math.round((totalConformes / totalAvaliados) * 100) : 100;
     document.getElementById("kpi-indice-conformidade").textContent = `${percentual}%`;
 
-    // Renderiza Gráficos
     renderizarGraficosDashboard(historico);
-
-    // Renderiza Tabela de Histórico
     renderizarTabelaHistorico(historico);
 }
 
 function renderizarGraficosDashboard(historico) {
-    // 1. Agrupamento de Avarias por Unidade
     const avariasPorUnidade = {};
-    // 2. Agrupamento de Avarias por Tipo de Item
     const avariasPorItem = {};
 
     historico.forEach(ronda => {
         if (ronda.Itens_Detalhados) {
             ronda.Itens_Detalhados.forEach(item => {
                 if (item.Status === "Não Conforme") {
-                    // Contagem por Unidade
-                    avariasPorUnidade[ronda.Unidade_Local] = (avariasPorUnidade[ronda.Unidade_Local] || 0) + 1;
-                    // Contagem por Item
-                    avariasPorItem[item.Nome_Item] = (avariasPorItem[item.Nome_Item] || 0) + 1;
+                    const qtdAvarias = item.Evidencias ? item.Evidencias.length : 1;
+                    avariasPorUnidade[ronda.Unidade_Local] = (avariasPorUnidade[ronda.Unidade_Local] || 0) + qtdAvarias;
+                    avariasPorItem[item.Nome_Item] = (avariasPorItem[item.Nome_Item] || 0) + qtdAvarias;
                 }
             });
         }
     });
 
-    // Destrói gráficos antigos para re-renderizar
     if (chartUnidadesInstance) chartUnidadesInstance.destroy();
     if (chartItensInstance) chartItensInstance.destroy();
 
-    // Chart 1: Bar Chart (Unidades com mais avarias)
     const ctxUnidades = document.getElementById("chart-unidades").getContext("2d");
     chartUnidadesInstance = new Chart(ctxUnidades, {
         type: "bar",
@@ -536,7 +575,6 @@ function renderizarGraficosDashboard(historico) {
         }
     });
 
-    // Chart 2: Donut Chart (Distribuição de Falhas por Item)
     const ctxItens = document.getElementById("chart-itens").getContext("2d");
     chartItensInstance = new Chart(ctxItens, {
         type: "doughnut",
@@ -597,7 +635,13 @@ function filtrarHistorico() {
 // 7. GERAÇÃO DO RELATÓRIO PDF (html2pdf.js)
 // ==============================================================================
 function gerarPDFRelatorio() {
-    gerarPDFApartirDeObjeto(estadoRonda.ID_Ronda, estadoRonda.Unidade_Local, estadoRonda.Inspetor, document.getElementById("data-hora-ronda").value, Object.values(estadoRonda.itens));
+    gerarPDFApartirDeObjeto(
+        estadoRonda.ID_Ronda, 
+        estadoRonda.Unidade_Local, 
+        estadoRonda.Inspetor, 
+        document.getElementById("data-hora-ronda").value, 
+        Object.values(estadoRonda.itens)
+    );
 }
 
 function reemitirPDFHistorico(indexHistorico) {
@@ -605,12 +649,10 @@ function reemitirPDFHistorico(indexHistorico) {
     const r = historico[indexHistorico];
     if (!r) return;
 
-    // Adapta o formato dos itens do histórico para a geração do PDF
     const itensFormatados = r.Itens_Detalhados.map(i => ({
         nome: i.Nome_Item,
         status: i.Status,
-        observacao: i.Observacao,
-        fotos: i.Fotos || []
+        evidencias: i.Evidencias || []
     }));
 
     gerarPDFApartirDeObjeto(r.ID_Ronda, r.Unidade_Local, r.Inspetor, r.Data_Hora, itensFormatados);
@@ -619,7 +661,6 @@ function reemitirPDFHistorico(indexHistorico) {
 function gerarPDFApartirDeObjeto(idRonda, unidade, inspetor, dataHora, itens) {
     const template = document.getElementById("template-pdf");
     
-    // Filtra apenas itens com Não Conformidade para compor o relatório
     const naoConformes = itens.filter(i => i.status === "Não Conforme");
 
     let itensHTML = "";
@@ -627,24 +668,33 @@ function gerarPDFApartirDeObjeto(idRonda, unidade, inspetor, dataHora, itens) {
         itensHTML = `<div class="p-4 bg-green-50 border border-green-200 text-green-800 rounded-md font-semibold text-center">Todos os itens de sinalização avaliados foram considerados CONFORMES.</div>`;
     } else {
         naoConformes.forEach((item, idx) => {
-            let fotosHTML = "";
-            if (item.fotos && item.fotos.length > 0) {
-                fotosHTML = `<div class="flex flex-wrap gap-2 mt-2">` +
-                    item.fotos.map(f => `<img src="${f}" style="width: 140px; height: 100px; object-fit: cover; border-radius: 4px; border: 1px solid #ccc;">`).join('') +
-                    `</div>`;
+            let evidenciasHTML = "";
+            
+            if (item.evidencias && item.evidencias.length > 0) {
+                item.evidencias.forEach((ev, evIdx) => {
+                    evidenciasHTML += `
+                        <div style="margin-top: 8px; padding: 8px; background-color: #f8fafc; border-left: 3px solid #e11d48; font-size: 11px;">
+                            <div><strong>Evidência #${evIdx + 1} - Local:</strong> ${ev.Local || ev.local || 'Não informado'}</div>
+                            <div><strong>Descrição:</strong> ${ev.Descricao || ev.descricao || 'Sem descrição'}</div>
+                            ${(ev.Foto || ev.foto) ? `
+                                <div style="margin-top: 5px;">
+                                    <img src="${ev.Foto || ev.foto}" style="width: 130px; height: 90px; object-fit: cover; border-radius: 4px; border: 1px solid #cbd5e1;">
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+                });
             }
 
             itensHTML += `
                 <div class="pdf-item-row" style="margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #ddd;">
-                    <div style="font-weight: bold; color: #e11d48; font-size: 14px;">${idx + 1}. ${item.nome}</div>
-                    <div style="font-size: 12px; margin-top: 4px; color: #333;"><strong>Observação:</strong> ${item.observacao || "Sem detalhes"}</div>
-                    ${fotosHTML}
+                    <div style="font-weight: bold; color: #e11d48; font-size: 13px;">${idx + 1}. ${item.nome}</div>
+                    ${evidenciasHTML}
                 </div>
             `;
         });
     }
 
-    // Monta a estrutura em HTML estilizado do PDF
     template.innerHTML = `
         <div style="padding: 20px; font-family: Arial, sans-serif;">
             <div style="border-bottom: 3px solid #00995D; padding-bottom: 10px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
@@ -669,13 +719,12 @@ function gerarPDFApartirDeObjeto(idRonda, unidade, inspetor, dataHora, itens) {
 
             ${itensHTML}
 
-            <div style="margin-top: 30px; border-top: 1px solid #eee; pt-10px; text-align: center; font-size: 10px; color: #999;">
+            <div style="margin-top: 30px; border-top: 1px solid #eee; padding-top: 10px; text-align: center; font-size: 10px; color: #999;">
                 Sistema de Rondas de Sinalização - Unimed Litoral
             </div>
         </div>
     `;
 
-    // Opções de configuração para o html2pdf.js
     const opt = {
         margin:       10,
         filename:     `Relatorio_Avarias_${unidade.replace(/\s+/g, '_')}_${idRonda}.pdf`,
