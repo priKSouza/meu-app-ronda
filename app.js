@@ -203,7 +203,7 @@ function definirStatusItem(idItem, novoStatus) {
     atualizarContadoresStatus();
 }
 
-// Gerenciamento dos Cards Dinâmicos de Evidências (Foto + Local + Descrição)
+// Gerenciamento dos Cards Dinâmicos de Evidências (Foto + Local + Descrição + Status Drive)
 function adicionarCardEvidencia(idItem) {
     const evId = 'ev_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
     
@@ -211,7 +211,9 @@ function adicionarCardEvidencia(idItem) {
         id: evId,
         local: "",
         descricao: "",
-        foto: ""
+        foto: "",
+        driveUrl: "",
+        statusDrive: "pendente" // Estados: "pendente", "enviando", "sucesso", "erro"
     });
 
     renderizarCardsEvidencia(idItem);
@@ -229,10 +231,23 @@ function renderizarCardsEvidencia(idItem) {
     container.innerHTML = "";
 
     estadoRonda.itens[idItem].evidencias.forEach((ev, idx) => {
+        // Tag com indicador visual do status do envio ao Google Drive
+        let badgeDrive = "";
+        if (ev.statusDrive === "enviando") {
+            badgeDrive = `<span class="text-[10px] text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded flex items-center gap-1"><i class="fa-solid fa-spinner fa-spin"></i> Enviando Drive...</span>`;
+        } else if (ev.statusDrive === "sucesso") {
+            badgeDrive = `<span class="text-[10px] text-green-600 bg-green-50 border border-green-200 px-1.5 py-0.5 rounded flex items-center gap-1"><i class="fa-solid fa-cloud-arrow-up"></i> No Drive</span>`;
+        } else if (ev.statusDrive === "erro") {
+            badgeDrive = `<span class="text-[10px] text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded flex items-center gap-1"><i class="fa-solid fa-triangle-exclamation"></i> Falha no Drive</span>`;
+        }
+
         const evHTML = `
             <div id="card_ev_${ev.id}" class="bg-white p-3 rounded-md border border-gray-200 shadow-sm relative space-y-2">
                 <div class="flex items-center justify-between border-b pb-1">
-                    <span class="text-xs font-semibold text-gray-700">Evidência #${idx + 1}</span>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-semibold text-gray-700">Evidência #${idx + 1}</span>
+                        ${badgeDrive}
+                    </div>
                     <button type="button" onclick="removerCardEvidencia('${idItem}', '${ev.id}')" class="text-xs text-red-500 hover:text-red-700 font-medium flex items-center gap-1" title="Remover Evidência">
                         <i class="fa-solid fa-trash-can"></i> Excluir
                     </button>
@@ -241,7 +256,7 @@ function renderizarCardsEvidencia(idItem) {
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
                     <div>
                         <label class="block text-[11px] font-medium text-gray-600 mb-0.5">Local / Sala / Setor <span class="text-red-500">*</span></label>
-                        <input type="text" value="${ev.local || ''}" oninput="atualizarDadosEvidencia('${idItem}', '${ev.id}', 'local', this.value)" placeholder="Ex: Recepção, Consultório 02, Corridor B..." class="w-full p-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-unimed-green focus:outline-none">
+                        <input type="text" value="${ev.local || ''}" oninput="atualizarDadosEvidencia('${idItem}', '${ev.id}', 'local', this.value)" placeholder="Ex: Recepção, Consultório 02, Corredor B..." class="w-full p-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-unimed-green focus:outline-none">
                     </div>
 
                     <div>
@@ -288,6 +303,7 @@ function processarUploadFotoEvidencia(idItem, evId, input) {
         const ev = estadoRonda.itens[idItem].evidencias.find(e => e.id === evId);
         if (ev) {
             ev.foto = base64Comprimido;
+            ev.statusDrive = "pendente";
             renderizarCardsEvidencia(idItem);
         }
     });
@@ -390,6 +406,16 @@ async function processarEnvioRonda() {
         return;
     }
 
+    // Atualiza status visual de todas as evidências para "enviando"
+    Object.keys(estadoRonda.itens).forEach(idItem => {
+        if (estadoRonda.itens[idItem].status === "Não Conforme") {
+            estadoRonda.itens[idItem].evidencias.forEach(ev => {
+                ev.statusDrive = "enviando";
+            });
+            renderizarCardsEvidencia(idItem);
+        }
+    });
+
     // Calcula totais
     let totalConformes = 0;
     let totalNaoConformes = 0;
@@ -405,7 +431,8 @@ async function processarEnvioRonda() {
             Evidencias: item.evidencias.map(e => ({
                 Local: e.local,
                 Descricao: e.descricao,
-                Foto: e.foto
+                Foto: e.foto,
+                DriveUrl: e.driveUrl || ""
             }))
         });
     });
@@ -450,6 +477,16 @@ async function processarEnvioRonda() {
             redirect: "follow"
         });
 
+        // Atualiza status de envio para Sucesso nas evidências
+        Object.keys(estadoRonda.itens).forEach(idItem => {
+            if (estadoRonda.itens[idItem].status === "Não Conforme") {
+                estadoRonda.itens[idItem].evidencias.forEach(ev => {
+                    ev.statusDrive = "sucesso";
+                });
+                renderizarCardsEvidencia(idItem);
+            }
+        });
+
         salvarEnvioLocal(payload);
 
         document.getElementById("resumo-conformes").textContent = totalConformes;
@@ -460,6 +497,17 @@ async function processarEnvioRonda() {
 
     } catch (erro) {
         console.error("Erro ao enviar webhook:", erro);
+
+        // Atualiza status de envio para Erro nas evidências
+        Object.keys(estadoRonda.itens).forEach(idItem => {
+            if (estadoRonda.itens[idItem].status === "Não Conforme") {
+                estadoRonda.itens[idItem].evidencias.forEach(ev => {
+                    ev.statusDrive = "erro";
+                });
+                renderizarCardsEvidencia(idItem);
+            }
+        });
+
         alert("Sua ronda foi gravada localmente no dispositivo, porém ocorreu uma instabilidade na comunicação com o servidor: " + erro.message);
         
         salvarEnvioLocal(payload);
@@ -672,13 +720,18 @@ function gerarPDFApartirDeObjeto(idRonda, unidade, inspetor, dataHora, itens) {
             
             if (item.evidencias && item.evidencias.length > 0) {
                 item.evidencias.forEach((ev, evIdx) => {
+                    const fotoSrc = ev.Foto || ev.foto;
                     evidenciasHTML += `
                         <div style="margin-top: 8px; padding: 8px; background-color: #f8fafc; border-left: 3px solid #e11d48; font-size: 11px;">
                             <div><strong>Evidência #${evIdx + 1} - Local:</strong> ${ev.Local || ev.local || 'Não informado'}</div>
                             <div><strong>Descrição:</strong> ${ev.Descricao || ev.descricao || 'Sem descrição'}</div>
-                            ${(ev.Foto || ev.foto) ? `
-                                <div style="margin-top: 5px;">
-                                    <img src="${ev.Foto || ev.foto}" style="width: 130px; height: 90px; object-fit: cover; border-radius: 4px; border: 1px solid #cbd5e1;">
+                            ${fotoSrc ? `
+                                <div style="margin-top: 5px; position: relative; display: inline-block;">
+                                    <!-- Indicador de Carregamento (Spinner) enquanto o PDF renderiza -->
+                                    <div class="img-loader-spinner" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background-color: #f1f5f9; border-radius: 4px; border: 1px solid #cbd5e1;">
+                                        <i class="fa-solid fa-circle-notch fa-spin text-gray-400"></i>
+                                    </div>
+                                    <img src="${fotoSrc}" style="width: 130px; height: 90px; object-fit: cover; border-radius: 4px; border: 1px solid #cbd5e1; position: relative; z-index: 10; display: block;" onload="this.previousElementSibling.style.display='none'">
                                 </div>
                             ` : ''}
                         </div>
